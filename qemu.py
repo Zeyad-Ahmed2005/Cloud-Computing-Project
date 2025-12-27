@@ -1,41 +1,42 @@
 import subprocess
 import os
 
-def run_cmd(cmd: list[str]):
-    try:
-        subprocess.Popen(cmd, check=True)
-        print("Running:", " ".join(cmd))
-    except Exception as e:
-        print("Error:", str(e))
+class Qemu:
+    def __init__(self):
+        pass
 
-# cpu_cores = Amount of Cores
-# ram_size = Amount of RAM
-# disk_path = Path where the VM will be saved
-# iso_path = Path to the ISO image
+    def run_cmd(self, cmd: list[str]):
+        try:
+            subprocess.Popen(cmd)
+            print("Running:", " ".join(cmd))
+        except FileNotFoundError:
+            print("QEMU not found. Is Qemu installed and in PATH?")
+        except Exception as e:
+            print("Error occurred:", e)
 
-def create_virtual_machine(cpu_cores, ram_size, disk_path, iso_path):
-    if not os.path.exists(disk_path):
-        print("Disk path does not exist")
-        return
+    # cpu_cores = Amount of Cores
+    # ram_size = Amount of RAM
+    # disk_path = Path where the VM will be saved
+    # iso_path = Path to the ISO image
 
-    run_cmd([
-        "qemu-system-x86_64",
-        "-smp", str(cpu_cores),
-        "-m", str(ram_size),
-        "-hda", disk_path,
-        "-cdrom", iso_path,
-        "-boot", "d"
-    ])
+    def start_virtual_machine(self, cpu_cores, ram_size, disk_path, iso_path):
+        if not os.path.exists(disk_path):
+            print("Disk path does not exist: ", disk_path)
+            return
 
-def start_virtual_machine(cpu_cores, ram_size, disk_path):
-    if not os.path.exists(disk_path):
-        print("Disk path does not exist")
-        return
+        if not os.path.exists(iso_path):
+            print("ISO does not exist: ", iso_path)
+            return
+            
+        cmd = [
+            "qemu-system-x86_64",
+            "-smp", str(cpu_cores),
+            "-m", str(ram_size),
+            "-hda", disk_path,
+        ]
+        if iso_path:
+            cmd.extend(["-cdrom", iso_path, "-boot", "d"])
+        else:
+            cmd.extend(["-boot", "c"])
 
-    run_cmd([
-        "qemu-system-x86_64",
-        "-smp", str(cpu_cores),
-        "-m", str(ram_size),
-        "-hda", disk_path,
-        "-boot", "c"
-    ])
+        self.run_cmd(cmd)
