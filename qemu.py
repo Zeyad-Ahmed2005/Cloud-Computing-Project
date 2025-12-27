@@ -21,8 +21,20 @@ class Qemu:
     # iso_path = Path to the ISO image (optional)
 
     def start_virtual_machine(self, cpu_cores, ram_size, disk_path, iso_path=None):
+        if not cpu_cores:
+            print("No CPU Cores given.")
+            return
+        
+        if not ram_size:
+            print("No RAM Size given.")
+            return
+        
+        if not disk_path:
+            print("No Disk Path given.")
+            return
+
         if not os.path.exists(disk_path):
-            print("Disk path does not exist: ", disk_path)
+            print("Disk Path does not exist: ", disk_path)
             return
 
         if iso_path and not os.path.exists(iso_path):
@@ -62,3 +74,10 @@ class Qemu:
             print("Error: The configuration file is not in JSON format.")
         except Exception as e:
             print("Error occurred: ", e)
+
+    def delete_vm(self, disk_path):
+        if os.path.exists(disk_path):
+            os.remove(disk_path)
+            print("VM deleted successfully.")
+        else:
+            print("VM not found.")
