@@ -14,6 +14,7 @@ A comprehensive cross-platform Electron desktop application for managing Docker 
 - [Running the Application](#running-the-application)
 - [User Manual](#user-manual)
 - [Project Architecture](#project-architecture)
+- [Development Process: Design Choices, Challenges, and Solutions](#development-process-design-choices-challenges-and-solutions)
 - [API Documentation](#api-documentation)
 - [Development Guide](#development-guide)
 - [Troubleshooting](#troubleshooting)
@@ -722,6 +723,197 @@ Cloud-Computing-Project/
 - **Controlled API**: Only specific functions exposed via contextBridge
 - **Input Validation**: Python backend validates all inputs
 - **Error Handling**: Comprehensive error handling at all layers
+
+---
+
+## Development Process: Design Choices, Challenges, and Solutions
+
+This section documents the key design decisions, challenges encountered, and solutions implemented during the development of Docker & VM Manager.
+
+### Design Choices
+
+#### 1. **Electron + Python Architecture**
+**Decision**: Use Electron for the frontend and Python for backend operations.
+
+**Rationale**:
+- **Electron**: Provides cross-platform desktop application framework with native OS integration
+- **Python**: Excellent subprocess management and system utilities (psutil) for Docker/QEMU operations
+- **Separation of Concerns**: Frontend handles UI/UX, backend handles system operations
+- **Security**: Isolated processes prevent direct system access from renderer process
+
+**Trade-offs**:
+- Requires spawning Python processes for each operation (slight performance overhead)
+- Need to bundle Python backend with Electron app for distribution
+- Cross-platform path handling complexity
+
+#### 2. **IPC Communication Pattern**
+**Decision**: Use Electron's IPC (Inter-Process Communication) with context isolation.
+
+**Rationale**:
+- **Security**: Context isolation prevents renderer from accessing Node.js directly
+- **Type Safety**: Structured API through preload.js provides clear interface
+- **Maintainability**: Centralized API definition in preload.js
+
+**Implementation**:
+- Preload script exposes `window.electronAPI` with structured methods
+- Main process handles IPC and spawns Python processes
+- JSON-based communication between all layers
+
+#### 3. **Command-Line Interface for Python Backend**
+**Decision**: Python backend uses CLI arguments instead of HTTP server or direct library import.
+
+**Rationale**:
+- **Simplicity**: No need for HTTP server or complex inter-process communication
+- **Isolation**: Each operation runs in separate process, preventing state issues
+- **Debugging**: Easy to test Python backend independently via command line
+- **Resource Management**: Processes terminate after operation, freeing resources
+
+**Trade-offs**:
+- Process spawning overhead for each operation
+- JSON parsing required at each layer
+- Slightly more complex error handling across process boundaries
+
+#### 4. **Subprocess-Based Docker/QEMU Operations**
+**Decision**: Use subprocess calls to Docker CLI and QEMU binaries instead of native libraries.
+
+**Rationale**:
+- **Compatibility**: Works with any Docker/QEMU installation without additional dependencies
+- **Reliability**: Uses official CLI tools that users already have
+- **Maintenance**: No need to maintain bindings for multiple platforms
+- **Feature Completeness**: Access to all Docker/QEMU features via CLI
+
+**Trade-offs**:
+- Requires Docker/QEMU to be installed and in PATH
+- Error parsing from CLI output can be complex
+- Less efficient than native libraries (but acceptable for this use case)
+
+### Challenges Faced and Solutions
+
+#### Challenge 1: Docker Engine Dependency
+
+**Problem**: 
+In the first version of the application, if Docker Engine was closed or not running, the application would fail to work. Users had to manually start Docker Desktop before launching the app, which created a poor user experience.
+
+**Impact**:
+- Users encountered errors when trying to use Docker features
+- Required manual intervention before app could function
+- Confusing error messages for non-technical users
+- Reduced application usability
+
+**Solution Implemented**:
+Added automatic Docker Engine startup functionality that:
+1. **Detection**: Checks if Docker is running on application launch using `docker ps` command
+2. **Platform-Specific Startup**:
+   - **Windows**: Automatically launches Docker Desktop from common installation paths
+     - Checks multiple locations: Program Files, Program Files (x86), and LocalAppData
+     - Uses `spawn` with detached process to start Docker Desktop in background
+   - **macOS**: Uses `open -a Docker` command to launch Docker.app
+   - **Linux**: Attempts to start Docker service using `systemctl --user start docker`
+3. **Verification**: Waits and polls Docker until it's ready (with timeout)
+4. **User Notification**: Sends IPC message to renderer when Docker is ready
+
+**Implementation Details**:
+- Function `startDockerEngine()` in `main.js` handles platform detection and startup
+- Function `checkDockerRunning()` verifies Docker status
+- Automatic startup occurs during application initialization
+- Graceful fallback if auto-start fails (user can start manually)
+
+**Result**:
+- Seamless user experience - Docker starts automatically when needed
+- No manual intervention required for most users
+- Application works immediately after launch
+- Clear status indicators show Docker startup progress
+
+#### Challenge 2: Cross-Platform Path Handling
+
+**Problem**: 
+Different path formats across Windows, macOS, and Linux caused issues with file operations and Docker/QEMU command execution.
+
+**Solution**:
+- Used Node.js `path` module for all path operations
+- Platform detection using `process.platform`
+- Separate path handling logic for development vs. production builds
+- Python backend uses `os.path` for cross-platform compatibility
+
+#### Challenge 3: Python Executable Detection
+
+**Problem**: 
+Different platforms use different Python commands (`python`, `python3`, `py` on Windows).
+
+**Solution**:
+- Implemented `findPythonExecutable()` function that tries multiple commands
+- Falls back gracefully if Python not found
+- Provides clear error messages to users
+
+#### Challenge 4: Process Management for QEMU VMs
+
+**Problem**: 
+Tracking and managing QEMU VM processes across different platforms, especially when VMs are started externally.
+
+**Solution**:
+- Used `psutil` library to list and manage QEMU processes
+- Process filtering by command name (`qemu-system-x86_64`)
+- Graceful termination using process signals
+- Cross-platform process management through psutil abstraction
+
+#### Challenge 5: Real-Time Container Statistics
+
+**Problem**: 
+Docker stats command provides streaming output, but we needed to capture single snapshots for display.
+
+**Solution**:
+- Used `docker stats --no-stream` for one-time statistics
+- Implemented polling mechanism in frontend for periodic updates
+- JSON parsing of Docker stats output
+- Error handling for containers that stop during stats collection
+
+#### Challenge 6: Input Validation
+
+**Problem**: 
+Users could enter invalid values (negative numbers, non-numeric strings) for CPU cores, RAM, and disk sizes.
+
+**Solution**:
+- Frontend validation with immediate feedback
+- Backend validation in Python before executing commands
+- Clear error messages for invalid inputs
+- Prevention of negative numbers and zero values where inappropriate
+
+#### Challenge 7: Error Handling Across Process Boundaries
+
+**Problem**: 
+Errors from Python subprocess, Docker CLI, or QEMU needed to be properly propagated to the frontend.
+
+**Solution**:
+- Consistent JSON error format: `{success: false, error: "message"}`
+- Try-catch blocks at all layers
+- Error message parsing from CLI output
+- User-friendly error messages in UI
+- Status indicators show operation results
+
+#### Challenge 8: Production Build Path Resolution
+
+**Problem**: 
+File paths differ between development (relative paths) and production builds (packaged in resources folder).
+
+**Solution**:
+- `getApiScriptPath()` function detects build mode using `app.isPackaged`
+- Development: Uses relative paths to `backend/` folder
+- Production: Uses `process.resourcesPath` for bundled files
+- Same logic applied to all backend file references
+
+### Lessons Learned
+
+1. **User Experience First**: The Docker auto-start feature significantly improved usability. Always consider the user's workflow when designing features.
+
+2. **Platform Differences Matter**: Cross-platform development requires careful testing on all target platforms. Path handling, process management, and system integration vary significantly.
+
+3. **Error Handling is Critical**: Comprehensive error handling at every layer prevents confusing user experiences and aids debugging.
+
+4. **Process Isolation Benefits**: Using separate processes for backend operations provides better resource management and prevents state issues, despite slight performance overhead.
+
+5. **CLI Tools are Reliable**: Using official CLI tools (Docker, QEMU) instead of libraries provides better compatibility and feature access, though requires more output parsing.
+
+6. **Automatic Detection and Recovery**: Features like Docker auto-start that detect and fix common issues greatly improve user experience.
 
 ---
 
