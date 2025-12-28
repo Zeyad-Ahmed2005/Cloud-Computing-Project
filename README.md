@@ -6,21 +6,22 @@ A comprehensive cross-platform Electron desktop application for managing Docker 
 
 ## 📋 Table of Contents
 
-1. [Project Overview](#project-overview)
-2. [Features](#features)
-3. [Technology Stack & Libraries](#technology-stack--libraries)
-4. [System Requirements](#system-requirements)
-5. [Installation Guide](#installation-guide)
-6. [User Manual](#user-manual)
-7. [Project Architecture](#project-architecture)
-8. [API Documentation](#api-documentation)
-9. [Development Guide](#development-guide)
-10. [Troubleshooting](#troubleshooting)
-11. [License](#license)
+- [Project Overview](#project-overview)
+- [Features](#features)
+- [Technology Stack & Libraries](#technology-stack--libraries)
+- [System Requirements](#system-requirements)
+- [Installation Guide](#installation-guide)
+- [Running the Application](#running-the-application)
+- [User Manual](#user-manual)
+- [Project Architecture](#project-architecture)
+- [API Documentation](#api-documentation)
+- [Development Guide](#development-guide)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
 
 ---
 
-## 🎯 Project Overview
+## Project Overview
 
 **Docker & VM Manager** is a desktop application that provides a unified graphical interface for managing both Docker containers/images and QEMU virtual machines. It eliminates the need to use command-line tools, making container and VM management accessible to users of all technical levels.
 
@@ -29,12 +30,24 @@ A comprehensive cross-platform Electron desktop application for managing Docker 
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 - **Modern UI**: Clean, tabbed interface with real-time updates
 - **Docker Integration**: Full Docker management without CLI
+- **Auto-Start Docker**: Automatically starts Docker engine when app launches
 - **QEMU Integration**: Create and manage virtual machines
 - **No CLI Required**: All operations through intuitive GUI
 
 ---
 
-## ✨ Features
+## Features
+
+### Application Startup Features
+
+- **Automatic Docker Engine Startup**: 
+  - When the application launches, it automatically detects if Docker is running
+  - If Docker is not running, it attempts to start it:
+    - **Windows**: Launches Docker Desktop from common installation paths
+    - **macOS**: Opens Docker.app using the `open` command
+    - **Linux**: Attempts to start Docker service (may require manual intervention with sudo)
+  - If Docker is already running, the app detects it and proceeds normally
+  - Docker startup may take a few seconds - the app will wait and verify Docker is ready
 
 ### Docker Management Features
 
@@ -79,16 +92,18 @@ A comprehensive cross-platform Electron desktop application for managing Docker 
   - VM name
   - Command-line arguments
 - **Create VMs**: Start virtual machines with:
-  - Customizable CPU cores
-  - RAM size (in MB)
+  - Customizable CPU cores (minimum 1, must be positive integer)
+  - RAM size (in MB, minimum 1 MB, must be positive integer)
   - Disk image path (supports multiple formats: qcow2, raw, vmdk, vhdx, vdi, img)
   - Optional ISO image for OS installation
+  - **Input Validation**: All numeric inputs are validated to prevent negative numbers
 - **Stop VMs**: Gracefully terminate running virtual machines
 - **Delete VM Disks**: Remove VM disk images from disk
 
 #### 2. **Disk Image Management**
 - **Create Disk Images**: Generate new QEMU disk images in qcow2 format
-- **Custom Sizes**: Specify disk size (e.g., "10G", "500M")
+- **Custom Sizes**: Specify disk size (e.g., "10G", "500M", "1T")
+- **Size Validation**: Disk size must be a positive number with valid format
 - **Directory Support**: Automatically detect disk images in directories
 
 #### 3. **VM Configuration**
@@ -105,10 +120,11 @@ A comprehensive cross-platform Electron desktop application for managing Docker 
 - **Auto-refresh**: Automatic data refresh every 3 minutes
 - **Modal Dialogs**: User-friendly input dialogs and result displays
 - **Responsive Design**: Modern, clean interface with smooth animations
+- **Docker Auto-Start**: Automatically starts Docker engine when application launches
 
 ---
 
-## 🛠 Technology Stack & Libraries
+## Technology Stack & Libraries
 
 ### Frontend Technologies
 
@@ -202,7 +218,7 @@ psutil>=5.9.0
 
 ---
 
-## 💻 System Requirements
+## System Requirements
 
 ### Minimum Requirements
 
@@ -237,7 +253,7 @@ psutil>=5.9.0
 
 ---
 
-## 📦 Installation Guide
+## Installation Guide
 
 ### Step 1: Install Prerequisites
 
@@ -315,7 +331,7 @@ cd Cloud-Computing-Project
 
 ```bash
 # From project root
-pip install -r requirements.txt
+   pip install -r requirements.txt
 
 # Or use pip3
 pip3 install -r requirements.txt
@@ -349,7 +365,7 @@ npm install
 
 ---
 
-## 🚀 Running the Application
+## Running the Application
 
 ### Development Mode
 
@@ -387,18 +403,23 @@ Built applications will be in the `electron-app/dist` directory:
 
 ---
 
-## 📖 User Manual
+## User Manual
 
 ### Getting Started
 
 1. **Launch the Application**
    - Double-click the executable or run `npm start` in development
+   - **Docker Engine Auto-Start**: The application automatically attempts to start Docker when it opens
+     - On Windows/macOS: Launches Docker Desktop if not already running
+     - On Linux: Attempts to start Docker service (may require manual start with sudo)
+     - If Docker is already running, it will be detected automatically
    - The application opens with the Docker tab active
 
 2. **Check Status Indicator**
    - Top-right corner shows current status
    - Green dot = Ready/Success
    - Red dot = Error
+   - Note: Docker may take a few seconds to fully start after the app launches
 
 ### Docker Tab - Complete Guide
 
@@ -504,17 +525,26 @@ Built applications will be in the `electron-app/dist` directory:
 
 1. **Prepare Disk Image** (if needed):
    - Enter disk path (or click folder icon to browse)
-   - Enter size (e.g., `10G`, `500M`)
+   - Enter size (e.g., `10G`, `500M`, `1T`)
+     - Size must be a positive number
+     - Format: number followed by optional unit (K, M, G, T)
+     - Examples: `10G`, `500M`, `1.5T`
+     - Negative numbers are automatically rejected
    - Click "Create Disk Image"
    - Wait for creation to complete
 
 2. **Start a VM**:
    - Fill in VM creation form:
      - **CPU Cores**: Number of CPU cores (e.g., `2`, `4`)
+       - Must be a positive integer (minimum 1)
+       - Negative numbers are automatically rejected
      - **RAM Size**: Memory in MB (e.g., `2048` for 2GB)
+       - Must be a positive integer (minimum 1 MB)
+       - Negative numbers are automatically rejected
      - **Disk Path**: Path to disk image file or directory
      - **ISO Path** (optional): Path to OS installation ISO
    - Click "Start VM"
+   - Input validation ensures all values are valid before submission
    - VM window opens (QEMU display)
    - VM appears in "Running VMs" list
 
@@ -545,6 +575,9 @@ Built applications will be in the `electron-app/dist` directory:
    - Click "Load Config" button
    - Select JSON configuration file
    - Configuration loads into editor and form fields
+   - **Validation**: All numeric values (cpu_cores, ram_size) are validated
+     - Must be positive integers (minimum 1)
+     - Negative numbers are rejected with error messages
    - Example JSON format:
      ```json
      {
@@ -569,6 +602,7 @@ Built applications will be in the `electron-app/dist` directory:
        }
      ]
      ```
+   - **Note**: Invalid values (negative numbers, zero, non-numeric) will be rejected
 
 2. **Save Configuration**:
    - Edit configuration in JSON editor
@@ -603,7 +637,7 @@ Built applications will be in the `electron-app/dist` directory:
 
 ---
 
-## 🏗 Project Architecture
+## Project Architecture
 
 ### Directory Structure
 
@@ -691,7 +725,7 @@ Cloud-Computing-Project/
 
 ---
 
-## 📚 API Documentation
+## API Documentation
 
 ### Electron IPC API (via preload.js)
 
@@ -861,7 +895,7 @@ All methods return JSON strings with `{success: boolean, ...}` format.
 
 ---
 
-## 🔧 Development Guide
+## Development Guide
 
 ### Setting Up Development Environment
 
@@ -1029,7 +1063,7 @@ npm run build:linux
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues and Solutions
 
@@ -1052,15 +1086,22 @@ npm run build:linux
 **Symptoms**: "Docker not found" or "Cannot connect to Docker daemon"
 
 **Solutions**:
+- **Auto-Start Feature**: The app attempts to start Docker automatically on launch
+  - If auto-start fails, you may need to start Docker manually
+  - Wait a few seconds after app launch for Docker to fully initialize
 - **Windows/macOS**: 
-  - Start Docker Desktop
+  - Start Docker Desktop manually if auto-start didn't work
   - Wait for Docker to fully start (whale icon in system tray)
   - Verify: `docker ps` in terminal
+  - Common Docker Desktop locations:
+    - Windows: `C:\Program Files\Docker\Docker\Docker Desktop.exe`
+    - macOS: `/Applications/Docker.app`
 - **Linux**: 
   - Start Docker service: `sudo systemctl start docker`
   - Add user to docker group: `sudo usermod -aG docker $USER`
   - Log out and back in
   - Verify: `docker ps`
+  - Note: Auto-start on Linux may require sudo permissions
 
 #### QEMU Not Found
 
@@ -1153,7 +1194,7 @@ npm run build:linux
 
 ---
 
-## 📄 License
+## License
 
 MIT License
 
@@ -1171,9 +1212,9 @@ MIT License
 ## 📝 Version History
 
 - **v1.0.0**: Initial release
-  - Docker image and container management
-  - QEMU virtual machine management
-  - Dockerfile editor
+- Docker image and container management
+- QEMU virtual machine management
+- Dockerfile editor
   - Container logs and statistics
   - Cross-platform support
 

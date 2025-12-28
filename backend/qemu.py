@@ -43,8 +43,24 @@ class Qemu:
         if not cpu_cores:
             return json.dumps({"success": False, "error": "No CPU Cores given."})
         
+        # Validate CPU cores - must be positive integer
+        try:
+            cpu_cores_int = int(cpu_cores)
+            if cpu_cores_int < 1:
+                return json.dumps({"success": False, "error": "CPU cores must be a positive number (at least 1)."})
+        except (ValueError, TypeError):
+            return json.dumps({"success": False, "error": "CPU cores must be a valid positive number."})
+        
         if not ram_size:
             return json.dumps({"success": False, "error": "No RAM Size given."})
+        
+        # Validate RAM size - must be positive integer
+        try:
+            ram_size_int = int(ram_size)
+            if ram_size_int < 1:
+                return json.dumps({"success": False, "error": "RAM size must be a positive number (at least 1 MB)."})
+        except (ValueError, TypeError):
+            return json.dumps({"success": False, "error": "RAM size must be a valid positive number."})
         
         if not disk_path:
             return json.dumps({"success": False, "error": "No Disk Path given."})
@@ -183,17 +199,57 @@ class Qemu:
             results = []
             if isinstance(vm_file, list):
                 for config_data in vm_file:
+                    # Validate config values before creating VM
+                    cpu_cores = config_data.get('cpu_cores')
+                    ram_size = config_data.get('ram_size')
+                    
+                    # Validate CPU cores
+                    try:
+                        if cpu_cores is None or int(cpu_cores) < 1:
+                            results.append({"success": False, "error": "CPU cores must be a positive number (at least 1)."})
+                            continue
+                    except (ValueError, TypeError):
+                        results.append({"success": False, "error": "CPU cores must be a valid positive number."})
+                        continue
+                    
+                    # Validate RAM size
+                    try:
+                        if ram_size is None or int(ram_size) < 1:
+                            results.append({"success": False, "error": "RAM size must be a positive number (at least 1 MB)."})
+                            continue
+                    except (ValueError, TypeError):
+                        results.append({"success": False, "error": "RAM size must be a valid positive number."})
+                        continue
+                    
                     result = self.start_virtual_machine(
-                        cpu_cores=config_data.get('cpu_cores'),
-                        ram_size=config_data.get('ram_size'),
+                        cpu_cores=cpu_cores,
+                        ram_size=ram_size,
                         disk_path=config_data.get('disk_path'),
                         iso_path=config_data.get('iso_path')
                     )
                     results.append(json.loads(result))
             else:
+                # Validate config values for single VM
+                cpu_cores = vm_file.get('cpu_cores')
+                ram_size = vm_file.get('ram_size')
+                
+                # Validate CPU cores
+                try:
+                    if cpu_cores is None or int(cpu_cores) < 1:
+                        return json.dumps({"success": False, "error": "CPU cores must be a positive number (at least 1)."})
+                except (ValueError, TypeError):
+                    return json.dumps({"success": False, "error": "CPU cores must be a valid positive number."})
+                
+                # Validate RAM size
+                try:
+                    if ram_size is None or int(ram_size) < 1:
+                        return json.dumps({"success": False, "error": "RAM size must be a positive number (at least 1 MB)."})
+                except (ValueError, TypeError):
+                    return json.dumps({"success": False, "error": "RAM size must be a valid positive number."})
+                
                 result = self.start_virtual_machine(
-                    cpu_cores=vm_file.get('cpu_cores'),
-                    ram_size=vm_file.get('ram_size'),
+                    cpu_cores=cpu_cores,
+                    ram_size=ram_size,
                     disk_path=vm_file.get('disk_path'),
                     iso_path=vm_file.get('iso_path')
                 )
@@ -273,6 +329,20 @@ class Qemu:
     def create_disk_image(self, path, size):
         """Create a QEMU disk image"""
         try:
+            # Validate disk size format and ensure it's positive
+            if not size:
+                return json.dumps({"success": False, "error": "Disk size is required."})
+            
+            # Parse size string (e.g., "10G", "500M", "1T")
+            import re
+            size_match = re.match(r'^(\d+(?:\.\d+)?)\s*([KMGT]?)$', size.strip(), re.IGNORECASE)
+            if not size_match:
+                return json.dumps({"success": False, "error": "Invalid disk size format. Use format like: 10G, 500M, 1T"})
+            
+            size_number = float(size_match.group(1))
+            if size_number <= 0:
+                return json.dumps({"success": False, "error": "Disk size must be a positive number."})
+            
             path = os.path.normpath(path)
             
             # Check if path is a directory - if so, create a default disk image filename

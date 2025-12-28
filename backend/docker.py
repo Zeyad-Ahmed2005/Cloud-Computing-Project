@@ -5,10 +5,47 @@ import platform
 import shlex
 
 class DockerManager:
+    def _is_docker_daemon_running(self):
+        """Check if Docker daemon is running"""
+        try:
+            subprocess.run(['docker', 'ps'], capture_output=True, text=True, check=True, timeout=5)
+            return True
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+    
+    def _check_docker_error(self, error, stderr=None):
+        """Check if error is due to Docker daemon not running"""
+        error_str = str(error).lower()
+        
+        # Convert stderr to string if it's bytes, otherwise use as-is
+        if stderr is None:
+            stderr_str = ''
+        elif isinstance(stderr, bytes):
+            stderr_str = stderr.decode('utf-8', errors='ignore').lower()
+        else:
+            stderr_str = str(stderr).lower()
+        
+        # Common Docker daemon error messages
+        daemon_errors = [
+            'cannot connect to the docker daemon',
+            'is the docker daemon running',
+            'connection refused',
+            'docker daemon is not running',
+            'error response from daemon',
+            'dial unix',
+            'connection to docker daemon failed'
+        ]
+        
+        # Check if error message contains any daemon error indicators
+        for daemon_error in daemon_errors:
+            if daemon_error in error_str or daemon_error in stderr_str:
+                return "Docker engine is not running. Please start Docker Desktop or Docker service."
+        
+        return None
     #lists all images
     def list_images(self):
         try:
-            output = subprocess.check_output(['docker', 'image', 'ls', '--format', 'json'], text=True)
+            output = subprocess.check_output(['docker', 'image', 'ls', '--format', 'json'], text=True, stderr=subprocess.PIPE)
             images = []
             for line in output.strip().split('\n'):
                 if line:
@@ -18,14 +55,34 @@ class DockerManager:
                         continue
             return json.dumps({"success": True, "data": images})
         except subprocess.CalledProcessError as e:
+            # Check if error is due to Docker daemon not running
+            # Handle stderr - it might be bytes or string
+            stderr_value = None
+            if e.stderr:
+                # Safely convert to string - handle both bytes and string
+                try:
+                    if isinstance(e.stderr, bytes):
+                        stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                    else:
+                        # Already a string, just use it
+                        stderr_value = str(e.stderr)
+                except (AttributeError, UnicodeDecodeError) as decode_err:
+                    # If decode fails, just convert to string
+                    stderr_value = str(e.stderr) if e.stderr else None
+            docker_error = self._check_docker_error(e, stderr_value)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
 
     #lists all containers
     def list_containers(self):
         try:
-            output = subprocess.check_output(['docker', 'container', 'ls', '-a', '--format', 'json'], text=True)
+            output = subprocess.check_output(['docker', 'container', 'ls', '-a', '--format', 'json'], text=True, stderr=subprocess.PIPE)
             containers = []
             for line in output.strip().split('\n'):
                 if line:
@@ -35,14 +92,34 @@ class DockerManager:
                         continue
             return json.dumps({"success": True, "data": containers})
         except subprocess.CalledProcessError as e:
+            # Check if error is due to Docker daemon not running
+            # Handle stderr - it might be bytes or string
+            stderr_value = None
+            if e.stderr:
+                # Safely convert to string - handle both bytes and string
+                try:
+                    if isinstance(e.stderr, bytes):
+                        stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                    else:
+                        # Already a string, just use it
+                        stderr_value = str(e.stderr)
+                except (AttributeError, UnicodeDecodeError) as decode_err:
+                    # If decode fails, just convert to string
+                    stderr_value = str(e.stderr) if e.stderr else None
+            docker_error = self._check_docker_error(e, stderr_value)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
 
     #lists all running containers
     def list_running_containers(self):
         try:
-            output = subprocess.check_output(['docker', 'ps', '--format', 'json'], text=True)
+            output = subprocess.check_output(['docker', 'ps', '--format', 'json'], text=True, stderr=subprocess.PIPE)
             containers = []
             for line in output.strip().split('\n'):
                 if line:
@@ -52,8 +129,28 @@ class DockerManager:
                         continue
             return json.dumps({"success": True, "data": containers})
         except subprocess.CalledProcessError as e:
+            # Check if error is due to Docker daemon not running
+            # Handle stderr - it might be bytes or string
+            stderr_value = None
+            if e.stderr:
+                # Safely convert to string - handle both bytes and string
+                try:
+                    if isinstance(e.stderr, bytes):
+                        stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                    else:
+                        # Already a string, just use it
+                        stderr_value = str(e.stderr)
+                except (AttributeError, UnicodeDecodeError) as decode_err:
+                    # If decode fails, just convert to string
+                    stderr_value = str(e.stderr) if e.stderr else None
+            docker_error = self._check_docker_error(e, stderr_value)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
 
     # takes a path and code as input and creates a dockerfile
@@ -67,6 +164,9 @@ class DockerManager:
                 f.write(code)
             return json.dumps({"success": True, "message": f"Dockerfile saved to {file_path}", "path": file_path})
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
 
     #should be within the docker file folder or the link to the docker file
@@ -82,7 +182,17 @@ class DockerManager:
                                       capture_output=True, text=True, check=True)
                 return json.dumps({"success": True, "message": f"Image {tag} built successfully", "output": result.stdout})
             except subprocess.CalledProcessError as e:
-                return json.dumps({"success": False, "error": str(e), "output": e.stderr})
+                # Handle stderr - it might be bytes or string
+                stderr_value = None
+                if e.stderr:
+                    if isinstance(e.stderr, bytes):
+                        stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                    else:
+                        stderr_value = str(e.stderr)
+                docker_error = self._check_docker_error(e, stderr_value)
+                if docker_error:
+                    return json.dumps({"success": False, "error": docker_error})
+                return json.dumps({"success": False, "error": str(e), "output": stderr_value if stderr_value else ''})
         else:
             return json.dumps({"success": False, "error": "Path not found"})
 
@@ -93,13 +203,26 @@ class DockerManager:
             result = subprocess.run(['docker', 'stop', ID], capture_output=True, text=True, check=True)
             return json.dumps({"success": True, "message": f"Container {ID} stopped"})
         except subprocess.CalledProcessError as e:
-            error_msg = e.stderr.strip() if e.stderr else str(e)
+            # Handle stderr - it might be bytes or string
+            stderr_value = None
+            if e.stderr:
+                if isinstance(e.stderr, bytes):
+                    stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                else:
+                    stderr_value = str(e.stderr)
+            docker_error = self._check_docker_error(e, stderr_value)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
+            error_msg = stderr_value.strip() if stderr_value else str(e)
             return json.dumps({
                 "success": False, 
                 "error": f"Failed to stop container {ID}",
                 "details": error_msg
             })
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
     
     # starts a stopped container
@@ -108,13 +231,26 @@ class DockerManager:
             result = subprocess.run(['docker', 'start', ID], capture_output=True, text=True, check=True)
             return json.dumps({"success": True, "message": f"Container {ID} started"})
         except subprocess.CalledProcessError as e:
-            error_msg = e.stderr.strip() if e.stderr else str(e)
+            # Handle stderr - it might be bytes or string
+            stderr_value = None
+            if e.stderr:
+                if isinstance(e.stderr, bytes):
+                    stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                else:
+                    stderr_value = str(e.stderr)
+            docker_error = self._check_docker_error(e, stderr_value)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
+            error_msg = stderr_value.strip() if stderr_value else str(e)
             return json.dumps({
                 "success": False, 
                 "error": f"Failed to start container {ID}",
                 "details": error_msg
             })
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
     
     # creates a container from an image
@@ -134,8 +270,21 @@ class DockerManager:
             container_id = result.stdout.strip()
             return json.dumps({"success": True, "message": f"Container created", "container_id": container_id})
         except subprocess.CalledProcessError as e:
-            return json.dumps({"success": False, "error": str(e), "output": e.stderr})
+            # Handle stderr - it might be bytes or string
+            stderr_value = None
+            if e.stderr:
+                if isinstance(e.stderr, bytes):
+                    stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                else:
+                    stderr_value = str(e.stderr)
+            docker_error = self._check_docker_error(e, stderr_value)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
+            return json.dumps({"success": False, "error": str(e), "output": stderr_value if stderr_value else ''})
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
     
     # deletes a container
@@ -148,7 +297,18 @@ class DockerManager:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return json.dumps({"success": True, "message": f"Container {ID} deleted"})
         except subprocess.CalledProcessError as e:
-            error_msg = e.stderr.strip() if e.stderr else str(e)
+            # Handle stderr - it might be bytes or string
+            stderr_value = None
+            if e.stderr:
+                if isinstance(e.stderr, bytes):
+                    stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                else:
+                    stderr_value = str(e.stderr)
+            docker_error = self._check_docker_error(e, stderr_value)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
+            error_msg = stderr_value.strip() if stderr_value else str(e)
+            # Provide more helpful error messages
             if "is running" in error_msg.lower():
                 return json.dumps({
                     "success": False,
@@ -168,6 +328,9 @@ class DockerManager:
                     "details": error_msg
                 })
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
     
     # deletes an image
@@ -180,7 +343,18 @@ class DockerManager:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return json.dumps({"success": True, "message": f"Image {ID} deleted", "output": result.stdout})
         except subprocess.CalledProcessError as e:
-            error_msg = e.stderr.strip() if e.stderr else str(e)
+            # Handle stderr - it might be bytes or string
+            stderr_value = None
+            if e.stderr:
+                if isinstance(e.stderr, bytes):
+                    stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                else:
+                    stderr_value = str(e.stderr)
+            docker_error = self._check_docker_error(e, stderr_value)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
+            error_msg = stderr_value.strip() if stderr_value else str(e)
+            # Provide more helpful error messages
             if "is being used by" in error_msg or "is referenced in" in error_msg:
                 return json.dumps({
                     "success": False, 
@@ -228,6 +402,11 @@ class DockerManager:
             if result.returncode != 0:
                 error_msg = result.stderr.strip() if result.stderr else "Unknown error"
                 
+                # Check if error is due to Docker daemon not running
+                docker_error = self._check_docker_error(error_msg, error_msg)
+                if docker_error:
+                    return json.dumps({"success": False, "error": docker_error})
+                
                 if "No such container" in error_msg or "container does not exist" in error_msg.lower():
                     return json.dumps({"success": False, "error": f"Container {ID} not found"})
                 
@@ -239,6 +418,9 @@ class DockerManager:
         except subprocess.TimeoutExpired:
             return json.dumps({"success": False, "error": "Logs request timed out after 30 seconds"})
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
     
     # gets container stats
@@ -263,6 +445,12 @@ class DockerManager:
                     return json.dumps({"success": False, "error": "No stats available - container may not be running"})
             else:
                 error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                
+                # Check if error is due to Docker daemon not running
+                docker_error = self._check_docker_error(error_msg, error_msg)
+                if docker_error:
+                    return json.dumps({"success": False, "error": docker_error})
+                
                 if "No such container" in error_msg or "container does not exist" in error_msg.lower():
                     return json.dumps({"success": False, "error": f"Container {ID} not found"})
                 elif "is not running" in error_msg.lower() or "is not started" in error_msg.lower():
@@ -273,6 +461,9 @@ class DockerManager:
         except subprocess.TimeoutExpired:
             return json.dumps({"success": False, "error": "Stats request timed out after 10 seconds"})
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
 
     # takes a name and searches for it on dockerhub
@@ -309,6 +500,9 @@ class DockerManager:
             
             if result.returncode != 0:
                 error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                docker_error = self._check_docker_error(error_msg, error_msg)
+                if docker_error:
+                    return json.dumps({"success": False, "error": docker_error})
                 return json.dumps({"success": False, "error": error_msg})
             lines = result.stdout.strip().split('\n')
             if len(lines) < 2:
@@ -345,6 +539,9 @@ class DockerManager:
         except subprocess.TimeoutExpired:
             return json.dumps({"success": False, "error": "Search request timed out"})
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
 
 
@@ -373,13 +570,26 @@ class DockerManager:
                 "error": f"Pulling image {name} timed out after 10 minutes. The image might be very large."
             })
         except subprocess.CalledProcessError as e:
-            error_msg = e.stderr.strip() if e.stderr else str(e)
+            # Handle stderr - it might be bytes or string
+            stderr_value = None
+            if e.stderr:
+                if isinstance(e.stderr, bytes):
+                    stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                else:
+                    stderr_value = str(e.stderr)
+            docker_error = self._check_docker_error(e, stderr_value)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
+            error_msg = stderr_value.strip() if stderr_value else str(e)
             return json.dumps({
                 "success": False, 
                 "error": f"Failed to pull image {name}",
                 "details": error_msg
             })
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
 
 
@@ -398,6 +608,19 @@ class DockerManager:
                         continue
             return json.dumps({"success": True, "data": results})
         except subprocess.CalledProcessError as e:
+            # Handle stderr - it might be bytes or string
+            stderr_value = None
+            if e.stderr:
+                if isinstance(e.stderr, bytes):
+                    stderr_value = e.stderr.decode('utf-8', errors='ignore')
+                else:
+                    stderr_value = str(e.stderr)
+            docker_error = self._check_docker_error(e, stderr_value)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})
         except Exception as e:
+            docker_error = self._check_docker_error(e)
+            if docker_error:
+                return json.dumps({"success": False, "error": docker_error})
             return json.dumps({"success": False, "error": str(e)})

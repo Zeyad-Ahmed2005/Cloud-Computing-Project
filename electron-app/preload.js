@@ -46,6 +46,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   file: {
     read: (filePath) => ipcRenderer.invoke('file:read', filePath),
     write: (filePath, content) => ipcRenderer.invoke('file:write', filePath, content)
+  },
+  
+  // Event listeners
+  onDockerReady: (callback) => {
+    ipcRenderer.on('docker:ready', callback);
+  },
+  
+  // Remove event listeners
+  removeDockerReadyListener: (callback) => {
+    ipcRenderer.removeListener('docker:ready', callback);
   }
 });
 

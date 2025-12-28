@@ -869,6 +869,21 @@ document.getElementById('createDiskImageBtn').addEventListener('click', async ()
         return;
     }
     
+    // Validate disk image size - extract number and validate it's positive
+    const sizeMatch = size.trim().match(/^(\d+(?:\.\d+)?)\s*([KMGT]?)$/i);
+    if (!sizeMatch) {
+        showToast('Invalid disk size format. Use format like: 10G, 500M, 1T', 'error');
+        updateStatus('Invalid disk size format', true);
+        return;
+    }
+    
+    const sizeNumber = parseFloat(sizeMatch[1]);
+    if (isNaN(sizeNumber) || sizeNumber <= 0) {
+        showToast('Disk size must be a positive number', 'error');
+        updateStatus('Invalid disk size value', true);
+        return;
+    }
+    
     try {
         updateStatus('Creating disk image...');
         const result = await window.electronAPI.qemu.createDiskImage(path, size);
@@ -890,6 +905,19 @@ document.getElementById('createVMForm').addEventListener('submit', async (e) => 
     const ramSize = parseInt(document.getElementById('vmRamSize').value);
     const diskPath = document.getElementById('vmDiskPath').value;
     const isoPath = document.getElementById('vmIsoPath').value || null;
+    
+    // Validate inputs - prevent negative numbers
+    if (isNaN(cpuCores) || cpuCores < 1) {
+        showToast('CPU cores must be a positive number (at least 1)', 'error');
+        updateStatus('Invalid CPU cores value', true);
+        return;
+    }
+    
+    if (isNaN(ramSize) || ramSize < 1) {
+        showToast('RAM size must be a positive number (at least 1 MB)', 'error');
+        updateStatus('Invalid RAM size value', true);
+        return;
+    }
     
     try {
         updateStatus('Starting VM...');
@@ -1093,6 +1121,20 @@ document.getElementById('pickDockerfilePath').addEventListener('click', async ()
         document.getElementById('dockerfilePath').value = result.filePaths[0];
     }
 });
+
+// Listen for Docker ready event from main process
+if (window.electronAPI && window.electronAPI.onDockerReady) {
+    window.electronAPI.onDockerReady(() => {
+        console.log('Docker is ready, refreshing images and containers...');
+        // Only refresh if Docker tab is active
+        const dockerTab = document.getElementById('docker-tab');
+        if (dockerTab && dockerTab.classList.contains('active')) {
+            loadImages();
+            loadContainers();
+            showToast('Docker engine is ready', 'success');
+        }
+    });
+}
 
 // Setup event listeners when DOM is ready
 if (document.readyState === 'loading') {

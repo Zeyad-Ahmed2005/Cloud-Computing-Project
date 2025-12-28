@@ -42,6 +42,155 @@ function getApiScriptPath() {
 
 const apiScriptPath = getApiScriptPath();
 
+// Helper function to notify renderer that Docker is ready
+function notifyDockerReady() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // If window is already loaded, send immediately
+    if (!mainWindow.webContents.isLoading()) {
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('docker:ready');
+        }
+      }, 500);
+    } else {
+      // Wait for window to load first
+      mainWindow.webContents.once('did-finish-load', () => {
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('docker:ready');
+          }
+        }, 500);
+      });
+    }
+  }
+}
+
+// Function to check if Docker is running
+function checkDockerRunning() {
+  return new Promise((resolve) => {
+    const { exec } = require('child_process');
+    exec('docker ps', { timeout: 5000 }, (error) => {
+      // If no error, Docker is running
+      resolve(!error);
+    });
+  });
+}
+
+// Function to start Docker engine based on platform
+async function startDockerEngine() {
+  const platform = process.platform;
+  
+  // First check if Docker is already running
+  const isRunning = await checkDockerRunning();
+  if (isRunning) {
+    console.log('Docker is already running');
+    return { success: true, message: 'Docker is already running' };
+  }
+
+  console.log('Attempting to start Docker engine...');
+
+  return new Promise((resolve) => {
+    let command;
+    let args = [];
+
+    if (platform === 'win32') {
+      // Windows: Try to start Docker Desktop
+      // Common locations for Docker Desktop
+      const dockerPaths = [
+        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Docker', 'Docker', 'Docker Desktop.exe'),
+        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Docker', 'Docker', 'Docker Desktop.exe'),
+        path.join(process.env.LOCALAPPDATA || process.env.USERPROFILE, 'AppData', 'Local', 'Docker', 'Docker Desktop.exe')
+      ];
+
+      // Try to find and start Docker Desktop
+      const fs = require('fs');
+      let dockerPath = null;
+      for (const dockerExe of dockerPaths) {
+        if (fs.existsSync(dockerExe)) {
+          dockerPath = dockerExe;
+          break;
+        }
+      }
+
+      if (dockerPath) {
+        command = dockerPath;
+        // Start Docker Desktop in background
+        args = [];
+      } else {
+        // Fallback: try using start command
+        command = 'cmd';
+        args = ['/c', 'start', '""', 'Docker Desktop'];
+      }
+    } else if (platform === 'darwin') {
+      // macOS: Open Docker.app
+      command = 'open';
+      args = ['-a', 'Docker'];
+    } else {
+      // Linux: Try to start Docker service
+      // Note: This may require sudo, so we'll try without first
+      command = 'systemctl';
+      args = ['--user', 'start', 'docker'];
+      
+      // If that fails, try with sudo (but this will prompt for password)
+      // For now, we'll just try the user service
+    }
+
+    const child = spawn(command, args, {
+      detached: true,
+      stdio: 'ignore'
+    });
+
+    child.on('error', (error) => {
+      console.error('Error starting Docker:', error);
+      // Try alternative method for Linux
+      if (platform === 'linux') {
+        // Try sudo systemctl start docker (will prompt for password)
+        const sudoChild = spawn('sudo', ['systemctl', 'start', 'docker'], {
+          stdio: 'inherit'
+        });
+        sudoChild.on('error', () => {
+          resolve({ 
+            success: false, 
+            message: 'Could not start Docker. Please start Docker manually.' 
+          });
+        });
+        sudoChild.on('close', () => {
+          // Wait a bit and check if Docker is running
+          setTimeout(async () => {
+            const running = await checkDockerRunning();
+            if (running) {
+              notifyDockerReady();
+            }
+            resolve({ 
+              success: running, 
+              message: running ? 'Docker started successfully' : 'Docker may need to be started manually'
+            });
+          }, 3000);
+        });
+      } else {
+        resolve({ 
+          success: false, 
+          message: 'Could not start Docker. Please start Docker Desktop manually.' 
+        });
+      }
+    });
+
+    child.unref(); // Allow the parent process to exit independently
+
+    // Wait a few seconds and check if Docker started
+    setTimeout(async () => {
+      const running = await checkDockerRunning();
+      if (running) {
+        notifyDockerReady();
+      }
+      resolve({ 
+        success: running, 
+        message: running ? 'Docker started successfully' : 'Docker is starting... Please wait a moment.'
+      });
+    }, 3000);
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -73,10 +222,35 @@ function createWindow() {
       mainWindow.webContents.openDevTools();
     }
   }
+
+  // Check if Docker is already running when window loads
+  mainWindow.webContents.once('did-finish-load', () => {
+    setTimeout(() => {
+      checkDockerRunning().then(isRunning => {
+        if (isRunning) {
+          notifyDockerReady();
+        }
+      });
+    }, 1000);
+  });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
+
+  // Start Docker engine when app opens
+  try {
+    const dockerResult = await startDockerEngine();
+    if (dockerResult.success) {
+      console.log('Docker engine started:', dockerResult.message);
+      // Notify renderer that Docker is ready
+      notifyDockerReady();
+    } else {
+      console.log('Docker startup:', dockerResult.message);
+    }
+  } catch (error) {
+    console.error('Error starting Docker:', error);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -113,17 +287,56 @@ function execPythonAPI(service, action, args = {}) {
     });
 
     child.on('close', (code) => {
-      if (code === 0) {
+      // Always try to parse stdout as JSON first (Python writes both success and error responses to stdout)
+      if (stdout && stdout.trim()) {
         try {
           const result = JSON.parse(stdout);
+          // If we got a valid JSON response, use it (regardless of exit code)
           resolve(result);
+          return;
         } catch (e) {
-          // If parsing fails, try to return the raw output as error
-          resolve({ success: false, error: `Failed to parse response: ${stdout}`, raw: stdout });
+          // If parsing fails, continue to error handling below
         }
+      }
+      
+      // If stdout is not valid JSON or empty, check for Docker daemon errors
+      const stdoutLower = (stdout || '').toLowerCase();
+      const stderrLower = (stderr || '').toLowerCase();
+      
+      // Check for Docker daemon errors
+      const dockerErrors = [
+        'cannot connect to the docker daemon',
+        'is the docker daemon running',
+        'connection refused',
+        'docker daemon is not running',
+        'error response from daemon',
+        'dial unix',
+        'connection to docker daemon failed'
+      ];
+      
+      let dockerError = null;
+      for (const dockerErr of dockerErrors) {
+        if (stdoutLower.includes(dockerErr) || stderrLower.includes(dockerErr)) {
+          dockerError = "Docker engine is not running. Please start Docker Desktop or Docker service.";
+          break;
+        }
+      }
+      
+      // Return error as a result object instead of rejecting
+      if (code === 0) {
+        // Success code but couldn't parse - this shouldn't happen, but handle it
+        resolve({ 
+          success: false, 
+          error: dockerError || `Failed to parse response: ${stdout || stderr || 'No output'}`, 
+          raw: stdout 
+        });
       } else {
-        // Return error as a result object instead of rejecting
-        resolve({ success: false, error: stderr || `Process exited with code ${code}`, code: code });
+        // Non-zero exit code
+        resolve({ 
+          success: false, 
+          error: dockerError || stderr || stdout || `Process exited with code ${code}`, 
+          code: code 
+        });
       }
     });
 
