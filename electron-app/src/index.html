@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Docker & VM Manager</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-container">
+      <header class="app-header">
+        <h1>🐳 Docker & VM Manager</h1>
+        <div class="status-indicator" id="statusIndicator">
+          <span class="status-dot"></span>
+          <span id="statusText">Ready</span>
+        </div>
+      </header>
+
+      <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="docker">Docker</button>
+        <button class="tab-btn" data-tab="vm">Virtual Machines</button>
+      </nav>
+
+      <!-- Docker Tab -->
+      <div class="tab-content active" id="docker-tab">
+        <div class="section-container">
+          <!-- Images Section -->
+          <section class="card">
+            <div class="card-header">
+              <h2>Images</h2>
+              <div class="card-actions">
+                <button class="btn btn-primary" id="refreshImages">
+                  Refresh
+                </button>
+                <button class="btn btn-secondary" id="searchDockerhubBtn">
+                  Search DockerHub
+                </button>
+                <button class="btn btn-secondary" id="pullImageBtn">
+                  Pull Image
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table id="imagesTable">
+                  <thead>
+                    <tr>
+                      <th>Repository</th>
+                      <th>Tag</th>
+                      <th>Image ID</th>
+                      <th>Created</th>
+                      <th>Size</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="imagesTableBody">
+                    <tr>
+                      <td colspan="6" class="loading">Loading images...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- Containers Section -->
+          <section class="card">
+            <div class="card-header">
+              <h2>Containers</h2>
+              <div class="card-actions">
+                <button class="btn btn-primary" id="refreshContainers">
+                  Refresh
+                </button>
+                <button class="btn btn-secondary" id="createContainerBtn">
+                  Create Container
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table id="containersTable">
+                  <thead>
+                    <tr>
+                      <th>Container ID</th>
+                      <th>Image</th>
+                      <th>Command</th>
+                      <th>Created</th>
+                      <th>Status</th>
+                      <th>Names</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="containersTableBody">
+                    <tr>
+                      <td colspan="7" class="loading">Loading containers...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- Dockerfile Editor Section -->
+          <section class="card">
+            <div class="card-header">
+              <h2>Dockerfile Editor</h2>
+              <div class="card-actions">
+                <button class="btn btn-secondary" id="saveDockerfileBtn">
+                  Save Dockerfile
+                </button>
+                <button class="btn btn-secondary" id="buildImageBtn">
+                  Build Image
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <textarea
+                id="dockerfileEditor"
+                placeholder='FROM ubuntu:latest&#10;RUN apt-get update&#10;CMD ["/bin/bash"]'
+              ></textarea>
+              <div class="form-group">
+                <label>Dockerfile Path:</label>
+                <input
+                  type="text"
+                  id="dockerfilePath"
+                  placeholder="Enter path or use file picker"
+                />
+                <button class="btn btn-small" id="pickDockerfilePath">
+                  Browse
+                </button>
+              </div>
+              <div class="form-group">
+                <label>Image Tag:</label>
+                <input type="text" id="imageTag" placeholder="myimage:latest" />
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- VM Tab -->
+      <div class="tab-content" id="vm-tab">
+        <div class="section-container">
+          <!-- Running VMs Section -->
+          <section class="card">
+            <div class="card-header">
+              <h2>Running Virtual Machines</h2>
+              <div class="card-actions">
+                <button class="btn btn-primary" id="refreshVMs">Refresh</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table id="vmsTable">
+                  <thead>
+                    <tr>
+                      <th>PID</th>
+                      <th>Name</th>
+                      <th>Command</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="vmsTableBody">
+                    <tr>
+                      <td colspan="4" class="loading">Loading VMs...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- Create VM Section -->
+          <section class="card">
+            <div class="card-header">
+              <h2>Create Virtual Machine</h2>
+            </div>
+            <div class="card-body">
+              <form id="createVMForm">
+                <div class="form-group">
+                  <label>CPU Cores:</label>
+                  <input
+                    type="number"
+                    id="vmCpuCores"
+                    min="1"
+                    value="2"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label>RAM Size (MB):</label>
+                  <input
+                    type="number"
+                    id="vmRamSize"
+                    min="128"
+                    value="2048"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label>Disk Path:</label>
+                  <input
+                    type="text"
+                    id="vmDiskPath"
+                    placeholder="Path to disk image"
+                    required
+                  />
+                  <button type="button" class="btn btn-small" id="pickDiskPath">
+                    Browse
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-small"
+                    id="createDiskImageBtn"
+                  >
+                    Create Disk Image
+                  </button>
+                </div>
+                <div class="form-group">
+                  <label>ISO Path (Optional):</label>
+                  <input
+                    type="text"
+                    id="vmIsoPath"
+                    placeholder="Path to ISO image"
+                  />
+                  <button type="button" class="btn btn-small" id="pickIsoPath">
+                    Browse
+                  </button>
+                </div>
+                <div class="form-group">
+                  <label>Disk Image Size (for new disk):</label>
+                  <input
+                    type="text"
+                    id="diskImageSize"
+                    placeholder="10G"
+                    value="10G"
+                  />
+                </div>
+                <button type="submit" class="btn btn-primary">Start VM</button>
+              </form>
+            </div>
+          </section>
+
+          <!-- VM Configuration Section -->
+          <section class="card">
+            <div class="card-header">
+              <h2>VM Configuration</h2>
+              <div class="card-actions">
+                <button class="btn btn-secondary" id="loadConfigBtn">
+                  Load Config
+                </button>
+                <button class="btn btn-secondary" id="saveConfigBtn">
+                  Save Config
+                </button>
+                <button class="btn btn-primary" id="createVMFromConfigBtn">
+                  Create VM from Config
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <textarea
+                id="vmConfigEditor"
+                placeholder='[{"cpu_cores": 2, "ram_size": 2048, "disk_path": "/path/to/disk.img", "iso_path": "/path/to/iso.iso"}]'
+              ></textarea>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Container Details Modal -->
+    <div id="containerModal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="containerModalTitle">Container Details</h2>
+        <div class="modal-tabs">
+          <button class="modal-tab-btn active" data-modal-tab="logs">
+            Logs
+          </button>
+          <button class="modal-tab-btn" data-modal-tab="stats">Stats</button>
+        </div>
+        <div id="containerModalBody">
+          <div class="modal-tab-content active" id="logsTab">
+            <pre id="containerLogs"></pre>
+          </div>
+          <div class="modal-tab-content" id="statsTab">
+            <pre id="containerStats"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DockerHub Search Results Modal -->
+    <div id="searchResultsModal" class="modal">
+      <div class="modal-content" style="max-width: 900px">
+        <span class="close">&times;</span>
+        <h2>DockerHub Search Results</h2>
+        <div
+          id="searchResultsContainer"
+          style="max-height: 600px; overflow-y: auto"
+        >
+          <div class="loading">Loading results...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create Container Modal -->
+    <div id="createContainerModal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Create Container</h2>
+        <form id="createContainerForm">
+          <div class="form-group">
+            <label>Image:</label>
+            <div style="display: flex; gap: 0.5rem; align-items: center">
+              <select
+                id="containerImageSelect"
+                style="
+                  flex: 1;
+                  padding: 0.5rem;
+                  border: 1px solid var(--border-color);
+                  border-radius: 4px;
+                  font-size: 0.9rem;
+                "
+              >
+                <option value="">-- Select an image --</option>
+              </select>
+              <button
+                type="button"
+                class="btn btn-secondary btn-small"
+                id="refreshImageListBtn"
+                title="Refresh image list"
+              >
+                Refresh
+              </button>
+            </div>
+            <input
+              type="text"
+              id="containerImage"
+              placeholder="Or type image name (e.g., ubuntu:latest)"
+              style="margin-top: 0.5rem"
+            />
+            <small style="color: var(--secondary-color); font-size: 0.85rem"
+              >Select from list above or type image name manually</small
+            >
+          </div>
+          <div class="form-group">
+            <label>Container Name:</label>
+            <input type="text" id="containerName" placeholder="my-container" />
+          </div>
+          <div class="form-group">
+            <label>Port Mappings (e.g., 8080:80):</label>
+            <input
+              type="text"
+              id="containerPorts"
+              placeholder="8080:80,3000:3000"
+            />
+          </div>
+          <div class="form-group">
+            <label>Environment Variables (e.g., KEY=value):</label>
+            <textarea
+              id="containerEnvVars"
+              placeholder="NODE_ENV=production&#10;PORT=3000"
+            ></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Create</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Input Dialog Modal -->
+    <div id="inputDialogModal" class="modal">
+      <div class="modal-content" style="max-width: 500px">
+        <span class="close">&times;</span>
+        <h2 id="inputDialogTitle">Input</h2>
+        <div class="form-group">
+          <label id="inputDialogLabel">Enter value:</label>
+          <input
+            type="text"
+            id="inputDialogInput"
+            class="form-control"
+            placeholder=""
+          />
+        </div>
+        <div
+          style="
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: 1rem;
+          "
+        >
+          <button class="btn btn-secondary" id="inputDialogCancel">
+            Cancel
+          </button>
+          <button class="btn btn-primary" id="inputDialogOk">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer"></div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

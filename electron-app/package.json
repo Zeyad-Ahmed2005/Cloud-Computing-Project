@@ -1,0 +1,81 @@
+{
+  "name": "docker-vm-manager",
+  "version": "1.0.0",
+  "description": "Cross-platform Docker and QEMU VM Manager",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "keywords": [
+    "docker",
+    "qemu",
+    "vm",
+    "container"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.dockervm.manager",
+    "productName": "Docker & VM Manager",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/docker.py",
+        "to": "docker.py"
+      },
+      {
+        "from": "../backend/qemu.py",
+        "to": "qemu.py"
+      },
+      {
+        "from": "../backend/api.py",
+        "to": "api.py"
+      },
+      {
+        "from": "../requirements.txt",
+        "to": "requirements.txt"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "sign": false,
+      "signingHashAlgorithms": [],
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "icon": "build/icon.png"
+    }
+  }
+}
