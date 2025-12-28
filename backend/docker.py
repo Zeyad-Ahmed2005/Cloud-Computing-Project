@@ -90,9 +90,7 @@ class DockerManager:
     #takes id or name and stops the container
     def stop_container(self, ID):
         try:
-            # Capture output to prevent container ID from interfering with JSON response
             result = subprocess.run(['docker', 'stop', ID], capture_output=True, text=True, check=True)
-            # Docker stop outputs the container ID, but we ignore it
             return json.dumps({"success": True, "message": f"Container {ID} stopped"})
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr.strip() if e.stderr else str(e)
@@ -107,9 +105,7 @@ class DockerManager:
     # starts a stopped container
     def start_container(self, ID):
         try:
-            # Capture output to prevent container ID from interfering with JSON response
             result = subprocess.run(['docker', 'start', ID], capture_output=True, text=True, check=True)
-            # Docker start outputs the container ID, but we ignore it
             return json.dumps({"success": True, "message": f"Container {ID} started"})
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr.strip() if e.stderr else str(e)
@@ -149,13 +145,10 @@ class DockerManager:
             if force:
                 cmd.append('-f')
             cmd.append(ID)
-            # Capture output to prevent it from interfering with JSON response
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            # Docker rm outputs the container ID, but we ignore it
             return json.dumps({"success": True, "message": f"Container {ID} deleted"})
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr.strip() if e.stderr else str(e)
-            # Provide more helpful error messages
             if "is running" in error_msg.lower():
                 return json.dumps({
                     "success": False,
@@ -188,7 +181,6 @@ class DockerManager:
             return json.dumps({"success": True, "message": f"Image {ID} deleted", "output": result.stdout})
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr.strip() if e.stderr else str(e)
-            # Provide more helpful error messages
             if "is being used by" in error_msg or "is referenced in" in error_msg:
                 return json.dumps({
                     "success": False, 
@@ -213,44 +205,35 @@ class DockerManager:
     # gets container logs
     def get_container_logs(self, ID, tail=100):
         try:
-            # Docker logs command - Docker Desktop uses this format
-            # Use --follow=false to get all logs up to tail, not stream
             result = subprocess.run(['docker', 'logs', '--tail', str(tail), ID], 
                                   capture_output=True, text=True, check=False, timeout=30)
             
-            # Docker logs puts actual logs in stdout, errors in stderr
-            # Even if returncode is non-zero, we might have logs in stdout
             logs_output = ""
             
-            # Always check stdout first - this is where Docker puts the actual logs
+            #  check stdout 
             if result.stdout:
                 logs_output = result.stdout
             
-            # If we have logs, return them regardless of return code
             if logs_output and logs_output.strip():
                 return json.dumps({"success": True, "logs": logs_output})
             
-            # If no stdout, check stderr - sometimes logs go to stderr
+            # If no stdout, check stderr
             if result.stderr:
-                # Check if stderr contains actual log content (not error messages)
                 stderr_content = result.stderr.strip()
-                # If stderr doesn't look like an error message, treat it as logs
                 if not any(keyword in stderr_content.lower() for keyword in ['error', 'no such container', 'container does not exist', 'cannot connect']):
                     if stderr_content:
                         return json.dumps({"success": True, "logs": stderr_content})
             
-            # If return code is non-zero and we have no logs, check the error
+            # If return code is non-zero and we have no logs check the error
             if result.returncode != 0:
                 error_msg = result.stderr.strip() if result.stderr else "Unknown error"
                 
                 if "No such container" in error_msg or "container does not exist" in error_msg.lower():
                     return json.dumps({"success": False, "error": f"Container {ID} not found"})
                 
-                # If we got here and have no logs, return the error
                 if not logs_output:
                     return json.dumps({"success": False, "error": error_msg})
             
-            # If we reach here, we have no logs
             return json.dumps({"success": True, "logs": "No logs available for this container. The container may not have produced any output yet."})
                 
         except subprocess.TimeoutExpired:
@@ -261,16 +244,13 @@ class DockerManager:
     # gets container stats
     def get_container_stats(self, ID):
         try:
-            # Docker stats requires the container to be running
-            # Use --no-stream to get a single snapshot
+            # this requires the container to be running
             result = subprocess.run(['docker', 'stats', '--no-stream', '--format', 'json', ID], 
                                   capture_output=True, text=True, check=False, timeout=10)
             
-            # Check if command succeeded
             if result.returncode == 0:
                 if result.stdout.strip():
                     try:
-                        # Docker stats outputs one JSON object per line
                         stats_line = result.stdout.strip().split('\n')[0]
                         if stats_line:
                             stats = json.loads(stats_line)
@@ -282,7 +262,6 @@ class DockerManager:
                 else:
                     return json.dumps({"success": False, "error": "No stats available - container may not be running"})
             else:
-                # Check error message
                 error_msg = result.stderr.strip() if result.stderr else "Unknown error"
                 if "No such container" in error_msg or "container does not exist" in error_msg.lower():
                     return json.dumps({"success": False, "error": f"Container {ID} not found"})
@@ -299,19 +278,15 @@ class DockerManager:
     # takes a name and searches for it on dockerhub
     def search_dockerhub(self, name):
         try:
-            # Try JSON format first (Docker 20.10+)
             result = subprocess.run(['docker', 'search', '--format', 'json', name], 
                                   capture_output=True, text=True, check=False, timeout=30)
             
             if result.returncode == 0 and result.stdout.strip():
-                # Parse JSON output
                 results = []
                 for line in result.stdout.strip().split('\n'):
                     if line.strip():
                         try:
                             img_data = json.loads(line)
-                            # Docker JSON format uses: Name, Description, StarCount, IsOfficial, IsAutomated
-                            # Convert to lowercase for consistency
                             star_count_str = str(img_data.get('StarCount', '0'))
                             star_count = int(star_count_str) if star_count_str.isdigit() else 0
                             
@@ -335,31 +310,24 @@ class DockerManager:
             if result.returncode != 0:
                 error_msg = result.stderr.strip() if result.stderr else "Unknown error"
                 return json.dumps({"success": False, "error": error_msg})
-            
-            # Parse the text output
             lines = result.stdout.strip().split('\n')
             if len(lines) < 2:
                 return json.dumps({"success": True, "data": []})
             
-            # Skip header line
             results = []
             for line in lines[1:]:
                 if not line.strip():
                     continue
                 
-                # Parse the tab-separated or space-separated columns
-                # Format: NAME DESCRIPTION STARS OFFICIAL AUTOMATED
                 parts = line.split()
                 if len(parts) >= 2:
                     image_name = parts[0]
-                    # Description might be multiple words, join them
                     description_parts = parts[1:-3] if len(parts) > 4 else parts[1:]
                     description = ' '.join(description_parts) if description_parts else ''
                     stars = parts[-3] if len(parts) >= 3 else '0'
                     official = parts[-2] if len(parts) >= 2 else ''
                     automated = parts[-1] if len(parts) >= 1 else ''
                     
-                    # Convert stars to int
                     try:
                         star_count = int(stars) if stars.isdigit() else 0
                     except:
