@@ -4,6 +4,16 @@ A comprehensive cross-platform Electron desktop application for managing Docker 
 
 ---
 
+## Team Members
+
+- **ABDALSALAM E. ALZAQZOUQ** - 222000008
+- **Fahd Essam** - 231000033
+- **Youssef Alaa-eldin Mahmoud** - 231000861
+- **Zeyad Ahmed** - 231000010
+- **Mohamed Abdellatif** - 231000119
+
+---
+
 ## 📋 Table of Contents
 
 - [Project Overview](#project-overview)
